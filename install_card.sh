@@ -10,14 +10,14 @@ function opensc_conf_file {
 sudo chmod 666 /etc/opensc/opensc.conf
 echo "# The following section shows definitions for PC/SC readers.
 reader_driver pcsc {
-		# Limit command and response sizes. Some Readers don't propagate their
-		# transceive capabilities correctly. max_send_size and max_recv_size
+# Limit command and response sizes. Some Readers don't propagate their
+# transceive capabilities correctly. max_send_size and max_recv_size
 
-		# allow setting the limits manually, for example to enable extended
-		# length capabilities.
-		# Default: max_send_size = 255, max_recv_size = 256;
-		max_send_size = 65535;
-		max_recv_size = 65536;" >> /etc/opensc/opensc.conf
+# allow setting the limits manually, for example to enable extended
+# length capabilities.
+# Default: max_send_size = 255, max_recv_size = 256;
+max_send_size = 65535;
+max_recv_size = 65536;" >> /etc/opensc/opensc.conf
 sudo chmod 444 /etc/opensc/opensc.conf
 	fi
 }
@@ -172,7 +172,7 @@ if [ -d "/etc/linuxmint" ]
 then
 	echo -e "\nYou are on Mint. Mint up!\n"
 	sleep 10
-	if [ -d "/opt/opensc" ]
+	if [ -d "/etc/opensc" ]
 	then
 		opensc_conf_file
 	else
