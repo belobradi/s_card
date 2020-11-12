@@ -130,6 +130,15 @@ fi
 
 manage opensc $mode
 manage pcscd $mode
+
+if pgrep pcscd &> /dev/null
+then
+	echo -e "Good! pcscd is already running!"
+else
+	echo -e "Starting pcscd..."
+	sudo service pcscd start
+fi
+
 manage libnss3-tools $mode
 
 if [ $mode == "R" ] && [ -d "$HOME/.pki/nssdb" ]
@@ -138,7 +147,7 @@ then
 	rm -r $HOME/.pki/nssdb
 fi
 
-if [ ! -d "$HOME/.pki/nssdb" ] && echo -e "\nDirectory $HOME/.pki/nssdb DOES NOT exists."
+if [ ! -d "$HOME/.pki/nssdb" ] && echo -e "\nDirectory $HOME/.pki/nssdb DOES NOT exists. Updating..."
 then
 	if pgrep chrome &> /dev/null
 	then 
