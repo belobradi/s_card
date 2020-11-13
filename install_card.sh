@@ -1,6 +1,32 @@
 #!/bin/bash
 # Created by Nemanja
 
+function opensc_v0_19 {
+	dir=$1
+	mode=$2
+
+	if [ $mode == "R" ]
+	then
+		echo -e "\nRemoving opensc...\n"
+		sleep 2
+		sudo apt-get remove -y --purge opensc
+		sudo apt-get autoremove -y
+	fi
+
+	dpkg -s opensc &> /dev/null
+	if [ $? -ne 0 ]
+	then
+		echo -e "\nDownloading opensc v0.19...\n"
+		wget -O $dir/opensc.deb https://owncloud.iten.rs/index.php/s/jUvaLrFRSX4TLjs/download
+		wget -O $dir/opensc-pkcs11.deb https://owncloud.iten.rs/index.php/s/PmZ6kODps9jhQBz/download
+
+		echo -e "\nInstalling opensc...\n"
+		sudo dpkg -i $dir/opensc*
+	else
+		echo "opensc is already installed"
+	fi
+}
+
 function opensc_conf_file {
 	if grep -c "max_send_size = 65535" /etc/opensc/opensc.conf &> /dev/null
 	then 
@@ -115,10 +141,23 @@ sudo ln -s /usr/share/ca-certificates/mozilla/* /opt/Citrix/ICAClient/keystore/c
 # Main part starts here #
 #-----------------------#
 
+if [ -d "/etc/linuxmint" ]
+then
+	echo -e "\nYou are on Linux Mint. Mint up!\n"
+else
+	echo -e "\nNo Mint for you!\n"
+fi
+
 if [ -z "$1" ]; then
 	mode="N"
 else
 	mode=$1
+fi
+
+if [ -z "$2" ]; then
+        tmp_dir=$(mktemp -d -t XXXXXXXXX)
+else
+        tmp_dir=$2
 fi
 
 if [ $mode == "R" ]
@@ -128,14 +167,23 @@ then
 	sleep 10
 fi
 
-manage opensc $mode
+result=`apt-cache policy opensc | grep Candidate |  cut -d ':' -f 2 | cut -d '-' -f 1 | tr -d '.'`
+ver=$(echo "$result + 0" | bc)
+
+ARCH_TYPE=`uname -m`
+if [ $ver -le 190 ] && [ $ARCH_TYPE = "x86_64" ]
+then
+	opensc_v0_19 $tmp_dir $mode
+else
+        manage opensc $mode
+fi
 manage pcscd $mode
 
 if pgrep pcscd &> /dev/null
 then
-	echo -e "Good! pcscd is already running!"
+	echo -e "\nGood! pcscd is already running!"
 else
-	echo -e "Starting pcscd..."
+	echo -e "\nStarting pcscd..."
 	sudo service pcscd start
 fi
 
@@ -179,14 +227,16 @@ manage icaclient $mode
 
 if [ -d "/etc/linuxmint" ]
 then
-	echo -e "\nYou are on Mint. Mint up!\n"
-	sleep 10
 	if [ -d "/etc/opensc" ]
 	then
 		opensc_conf_file
 	else
 		echo -e "opensc folder doesn't exist..."
 	fi
+fi
+
+if [ -z "$2" ]; then
+        rm -rf $tmp_dir
 fi
 
 exit 0
