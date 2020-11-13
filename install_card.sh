@@ -1,6 +1,12 @@
 #!/bin/bash
 # Created by Nemanja
 
+function check_version {
+	program=$1
+	version=`apt-cache policy $program | grep Installed |  cut -d ':' -f 2`
+	echo -e "$program version --> $version"
+}
+
 function opensc_v0_19 {
 	dir=$1
 	mode=$2
@@ -30,7 +36,7 @@ function opensc_v0_19 {
 function opensc_conf_file {
 	if grep -c "max_send_size = 65535" /etc/opensc/opensc.conf &> /dev/null
 	then 
-		echo -e "Config file contains proper data."
+		echo -e "\nConfig file contains proper data."
 	else
 		echo -e "Editing the config file..."
 sudo chmod 666 /etc/opensc/opensc.conf
@@ -181,9 +187,9 @@ manage pcscd $mode
 
 if pgrep pcscd &> /dev/null
 then
-	echo -e "\nGood! pcscd is already running!"
+	echo -e "Good! pcscd is already running!"
 else
-	echo -e "\nStarting pcscd..."
+	echo -e "Starting pcscd..."
 	sudo service pcscd start
 fi
 
@@ -234,6 +240,12 @@ then
 		echo -e "opensc folder doesn't exist..."
 	fi
 fi
+
+echo -e "\n\nListing all installed programs:\n"
+check_version opensc
+check_version pcscd
+check_version libnss3-tools
+check_version icaclient
 
 if [ -z "$2" ]; then
         rm -rf $tmp_dir
