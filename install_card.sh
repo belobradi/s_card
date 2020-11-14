@@ -1,12 +1,14 @@
 #!/bin/bash
 # Created by Nemanja
 
+#-------------------------------------------------------------------------------------------------------
 function check_version {
 	program=$1
 	version=`apt-cache policy $program | grep Installed |  cut -d ':' -f 2`
 	echo -e "$program version --> $version"
 }
 
+#-------------------------------------------------------------------------------------------------------
 function opensc_v0_19 {
 	dir=$1
 	mode=$2
@@ -33,6 +35,7 @@ function opensc_v0_19 {
 	fi
 }
 
+#-------------------------------------------------------------------------------------------------------
 function opensc_conf_file {
 	if grep -c "max_send_size = 65535" /etc/opensc/opensc.conf &> /dev/null
 	then 
@@ -54,6 +57,7 @@ sudo chmod 444 /etc/opensc/opensc.conf
 	fi
 }
 
+#-------------------------------------------------------------------------------------------------------
 function manage {
 	program=$1
 	mode=$2
@@ -96,6 +100,7 @@ function manage {
 	fi
 }
 
+#-------------------------------------------------------------------------------------------------------
 function install_citrix {
 # https://ubuntuforums.org/showthread.php?t=1481300
 # Get arch type of ubuntu
@@ -143,36 +148,66 @@ echo -e "\nLinking certificates to Citrix.\n"
 sudo ln -s /usr/share/ca-certificates/mozilla/* /opt/Citrix/ICAClient/keystore/cacerts/
 }
 
-#-----------------------#
-# Main part starts here #
-#-----------------------#
+#----------------------------------------------------------------------------#
+#                                MAIN PART                                   #
+#----------------------------------------------------------------------------#
 
+#------------------------#
+# Check if on Linux Mint #
+#------------------------#
 if [ -d "/etc/linuxmint" ]
 then
 	echo -e "\nYou are on Linux Mint. Mint up!\n"
+	mint=true
 else
 	echo -e "\nNo Mint for you!\n"
+	mint=false
 fi
 
-if [ -z "$1" ]; then
-	mode="N"
-else
+#-------------------------#
+# Assess input parameters #
+#-------------------------#
+mode="N"
+if [[ $1 == *"/"* ]] && [ ! -z "$1" ]
+then
+	tmp_dir=$1
+	if [ ! -z "$2" ]
+	then
+		mode=$2
+	fi
+elif [[ $2 == *"/"* ]] && [ ! -z "$2" ]
+then
 	mode=$1
+	tmp_dir=$2
+elif [ ! -z "$1" ]
+then
+	mode=$1
+	tmp_dir=$(mktemp -d -t XXXXXXXXX)
+else
+	tmp_dir=$(mktemp -d -t XXXXXXXXX)
 fi
 
-if [ -z "$2" ]; then
-        tmp_dir=$(mktemp -d -t XXXXXXXXX)
-else
-        tmp_dir=$2
+if [ ! -d "$tmp_dir" ]
+then
+	mkdir $tmp_dir
 fi
+
+#echo -e "$mode\n$tmp_dir\n"
 
 if [ $mode == "R" ]
 then
 	echo -e "Reinstalling card...\n"
-	echo -e "^C to stop it, or wait."
-	sleep 10
+	echo -e "^C to stop it, or wait.\n"
+	sleep 8
+else
+	echo -e "Installing card...\n"
+	echo -e "^C to stop it, or wait.\n"
+	sleep 8
 fi
 
+#---------------#
+# Manage opensc #
+#---------------#
 result=`apt-cache policy opensc | grep Candidate |  cut -d ':' -f 2 | cut -d '-' -f 1 | tr -d '.'`
 ver=$(echo "$result + 0" | bc)
 
@@ -183,6 +218,10 @@ then
 else
         manage opensc $mode
 fi
+
+#--------------#
+# Manage pcscd #
+#--------------#
 manage pcscd $mode
 
 if pgrep pcscd &> /dev/null
@@ -193,6 +232,9 @@ else
 	sudo service pcscd start
 fi
 
+#----------------------#
+# Manage libnss3-tools #
+#----------------------#
 manage libnss3-tools $mode
 
 if [ $mode == "R" ] && [ -d "$HOME/.pki/nssdb" ]
@@ -229,9 +271,12 @@ else
 	echo -e "\nDirectory $HOME/.pki/nssdb already exists.\n"
 fi
 
+#------------------#
+# Manage icaclient #
+#------------------#
 manage icaclient $mode
 
-if [ -d "/etc/linuxmint" ]
+if [ $mint ]
 then
 	if [ -d "/etc/opensc" ]
 	then
@@ -241,14 +286,19 @@ then
 	fi
 fi
 
+#--------------------#
+# Installed programs #
+#--------------------#
 echo -e "\n\nListing all installed programs:\n"
 check_version opensc
 check_version pcscd
 check_version libnss3-tools
 check_version icaclient
 
-if [ -z "$2" ]; then
-        rm -rf $tmp_dir
-fi
+#--------------------#
+# Delete temp folder #
+#--------------------#
+rm -rf $tmp_dir
 
 exit 0
+
