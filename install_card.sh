@@ -277,15 +277,15 @@ fi
 #------------------#
 manage icaclient $mode
 
-if [ $mint ]
-then
-	if [ -d "/etc/opensc" ]
-	then
-		opensc_conf_file
-	else
-		echo -e "opensc folder doesn't exist..."
-	fi
-fi
+#if [ $mint ]
+#then
+#	if [ -d "/etc/opensc" ]
+#	then
+#		opensc_conf_file
+#	else
+#		echo -e "opensc folder doesn't exist..."
+#	fi
+#fi
 
 #--------------------#
 # Installed programs #
