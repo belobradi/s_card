@@ -52,7 +52,8 @@ reader_driver pcsc {
 # length capabilities.
 # Default: max_send_size = 255, max_recv_size = 256;
 max_send_size = 65535;
-max_recv_size = 65536;" >> /etc/opensc/opensc.conf
+max_recv_size = 65536;
+}" >> /etc/opensc/opensc.conf
 sudo chmod 444 /etc/opensc/opensc.conf
 	fi
 }
