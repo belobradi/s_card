@@ -188,94 +188,128 @@ else
 	tmp_dir=$(mktemp -d -t XXXXXXXXX)
 fi
 
-if [ ! -d "$tmp_dir" ]
-then
-	mkdir $tmp_dir
-fi
-
-#echo -e "$mode\n$tmp_dir\n"
-
 if [ $mode == "R" ]
 then
-	echo -e "Reinstalling card...\n"
-	echo -e "^C to stop it, or wait.\n"
-	sleep 8
+	echo -e "Reinstalling card programs...\n"
 else
-	echo -e "Installing card...\n"
-	echo -e "^C to stop it, or wait.\n"
-	sleep 8
+	echo -e "Installing card programs...\n"
 fi
 
-#---------------#
-# Manage opensc #
-#---------------#
-result=`apt-cache policy opensc | grep Candidate |  cut -d ':' -f 2 | cut -d '-' -f 1 | tr -d '.'`
-ver=$(echo "$result + 0" | bc)
+R_opensc=false
+R_pcscd=false
+R_libnss=false
+R_citrix=false
+case $3 in
+   opensc)
+      R_opensc=true
+      echo -e "opensc only\n"
+      ;;
+   pcscd)
+      R_pcscd=true
+      echo -e "pcscd only\n"
+      ;;
+   libnss)
+      R_libnss=true
+      echo -e "libnss3-tools only\n"
+      ;;
+   citrix)
+      R_citrix=true
+      echo -e "citrix only\n"
+      ;;
+   *)
+      R_opensc=true
+      R_pcscd=true
+      R_libnss=true
+      R_citrix=true
+      ;;
+esac
 
-ARCH_TYPE=`uname -m`
-if [ $ver -le 190 ] && [ $ARCH_TYPE = "x86_64" ]
+echo -e "^C to stop it, or wait.\n"
+sleep 8
+
+if [ ! -d "$tmp_dir" ]
 then
-	opensc_v0_19 $tmp_dir $mode
-else
-        manage opensc $mode
+   mkdir $tmp_dir
 fi
 
+if "$R_opensc"; then
+   #---------------#
+   # Manage opensc #
+   #---------------#
+   result=`apt-cache policy opensc | grep Candidate |  cut -d ':' -f 2 | cut -d '-' -f 1 | tr -d '.'`
+   ver=$(echo "$result + 0" | bc)
+
+   ARCH_TYPE=`uname -m`
+   if [ $ver -le 190 ] && [ $ARCH_TYPE = "x86_64" ]
+   then
+      opensc_v0_19 $tmp_dir $mode
+   else
+      manage opensc $mode
+   fi
+fi
+
+if "$R_pcscd"; then
 #--------------#
 # Manage pcscd #
 #--------------#
-manage pcscd $mode
+   manage pcscd $mode
 
-if pgrep pcscd &> /dev/null
-then
-	echo -e "Good! pcscd is already running!"
-else
-	echo -e "Starting pcscd..."
-	sudo service pcscd start
+   if pgrep pcscd &> /dev/null
+   then
+      echo -e "Good! pcscd is already running!"
+   else
+      echo -e "Starting pcscd..."
+      sudo service pcscd start
+   fi
 fi
 
+if "$R_libnss"; then
 #----------------------#
 # Manage libnss3-tools #
 #----------------------#
-manage libnss3-tools $mode
+   manage libnss3-tools $mode
 
-if [ $mode == "R" ] && [ -d "$HOME/.pki/nssdb" ]
-then
-	echo -e "\nRemoving nssdb folder..."
-	rm -r $HOME/.pki/nssdb
+   if [ $mode == "R" ] && [ -d "$HOME/.pki/nssdb" ]
+   then
+      echo -e "\nRemoving nssdb folder..."
+      rm -r $HOME/.pki/nssdb
+   fi
+
+   if [ ! -d "$HOME/.pki/nssdb" ] && echo -e "\nDirectory $HOME/.pki/nssdb DOES NOT exists. Updating..."
+   then
+      if pgrep chrome &> /dev/null
+      then 
+         echo -e "\nClose Chrome or it will be killed in 8 seconds."
+         sleep 8
+         if pgrep chrome &> /dev/null
+         then
+            pkill chrome
+            sleep 2
+         fi
+      fi
+      sleep 2
+      if pgrep chrome &> /dev/null
+      then
+         echo -e "\nChrome is still running. Exiting..."
+         exit 0
+      else
+         echo -e "\n\nWhen required continue by pressing ENTER!!! (even for passwords)\n"
+         sleep 10
+         mkdir -p $HOME/.pki/nssdb
+         certutil -d $HOME/.pki/nssdb -N
+         modutil -dbdir sql:$HOME/.pki/nssdb -add opensc-pkcs11 -libfile opensc-pkcs11.so -mechanisms FRIENDLY
+      fi
+   else
+      echo -e "\nDirectory $HOME/.pki/nssdb already exists.\n"
+   fi
 fi
 
-if [ ! -d "$HOME/.pki/nssdb" ] && echo -e "\nDirectory $HOME/.pki/nssdb DOES NOT exists. Updating..."
-then
-	if pgrep chrome &> /dev/null
-	then 
-		echo -e "\nClose Chrome or it will be killed in 8 seconds."
-		sleep 8
-		if pgrep chrome &> /dev/null
-		then
-			pkill chrome
-			sleep 2
-		fi
-	fi
-	sleep 2
-	if pgrep chrome &> /dev/null
-	then
-		echo -e "\nChrome is still running. Exiting..."
-		exit 0
-	else
-		echo -e "\nWhen required continue by pressing ENTER!\n"
-		sleep 5
-		mkdir -p $HOME/.pki/nssdb
-		certutil -d $HOME/.pki/nssdb -N
-		modutil -dbdir sql:$HOME/.pki/nssdb -add opensc-pkcs11 -libfile opensc-pkcs11.so -mechanisms FRIENDLY
-	fi
-else
-	echo -e "\nDirectory $HOME/.pki/nssdb already exists.\n"
-fi
-
+if "$R_citrix"; then
 #------------------#
 # Manage icaclient #
 #------------------#
-manage icaclient $mode
+   manage icaclient $mode
+fi
 
 #if [ $mint ]
 #then
