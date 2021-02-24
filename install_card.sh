@@ -110,6 +110,15 @@ function install_citrix {
 
 ARCH_TYPE=`uname -m`
 
+# Check if curl is installed
+dpkg -s curl &> /dev/null
+if [ $? -ne 0 ]
+then
+  sudo apt-get update
+  sudo apt-get install -y curl
+fi
+
+# Create download link from official Citrix site
 if [ $ARCH_TYPE = "i686" ] 
 then
   GDA=`curl -sS https://www.citrix.com/downloads/workspace-app/linux/workspace-app-for-linux-latest.html | awk '/icaclient_/ && /i386/ && /__gda__/' | cut -d? -f2 | cut -d\" -f1`
@@ -128,10 +137,11 @@ fi
 
 filename=$(basename "$DOWNLOAD_LINK" | cut -d? -f1)
 
+# Download Citrix from created link
 cd /tmp
 wget -O $filename $DOWNLOAD_LINK
 
-# install (get error on missing dependencies)
+# Install Citrix from downloaded file (get error on missing dependencies)
 sudo dpkg -i $filename
 
 # https://askubuntu.com/questions/40011/how-to-let-dpkg-i-install-dependencies-for-me
@@ -143,8 +153,10 @@ then
   sudo dpkg -i $filename
 fi
 
+# Remove leftovers
 rm /tmp/$filename
 
+# Link certificates
 echo -e "\nLinking certificates to Citrix.\n"
 sudo ln -s /usr/share/ca-certificates/mozilla/* /opt/Citrix/ICAClient/keystore/cacerts/
 }
