@@ -5,6 +5,10 @@
 function check_version {
 	program=$1
 	version=`apt-cache policy $program | grep Installed |  cut -d ':' -f 2`
+	if [ -z "$version" ]
+	then
+		version=" (none)"
+	fi
 	echo -e "$program version --> $version"
 }
 
@@ -13,12 +17,17 @@ function opensc_v0_19 {
 	dir=$1
 	mode=$2
 
-	if [ $mode == "R" ]
+	if [ $mode != "I" ]
 	then
 		echo -e "\nRemoving opensc...\n"
 		sleep 2
 		sudo apt-get remove -y --purge opensc
 		sudo apt-get autoremove -y
+
+		if [ $mode == "D" ]
+		then
+		    return
+		fi
 	fi
 
 	dpkg -s opensc &> /dev/null
@@ -63,12 +72,13 @@ function manage {
 	program=$1
 	mode=$2
 
-	if [ $mode == "R" ]
+	if [ $mode != "I" ]
 	then
 		echo -e "\nRemoving $program...\n"
 		sleep 2
 		sudo apt-get remove -y --purge $program
 		sudo apt-get autoremove -y
+		sudo apt-get clean -y
 		if [ $program == "icaclient" ] && [ -d "/opt/Citrix" ]
 		then
 		    echo -e "\nRemoving Citrix folder...\n"
@@ -77,6 +87,10 @@ function manage {
 		then
 		    echo -e "\nRemoving opensc folder...\n"
 			sudo rm -r /etc/opensc
+		fi
+		if [ $mode == "D" ]
+		then
+		    return
 		fi
 	fi
 	dpkg -s $program &> /dev/null
@@ -142,6 +156,10 @@ cd /tmp
 wget -O $filename $DOWNLOAD_LINK
 
 # Install Citrix from downloaded file (get error on missing dependencies)
+echo -e "\n\nIf CITRIX installation opens a new window, choose NO and press ENTER!!!"
+read -n 1 -s -r -p "(Press any key to continue)"
+echo -e "\n\n"
+
 sudo dpkg -i $filename
 
 # https://askubuntu.com/questions/40011/how-to-let-dpkg-i-install-dependencies-for-me
@@ -200,13 +218,27 @@ else
 	tmp_dir=$(mktemp -d -t XXXXXXXXX)
 fi
 
-if [ $mode == "R" ]
-then
-	echo -e "Reinstalling card programs...\n"
-else
-	echo -e "Installing card programs...\n"
-fi
+#-----------#
+# echo mode #
+#-----------#
+case $mode in
+   I)
+      echo -e "Installing card programs...\n"
+      ;;
+   R)
+      echo -e "Reinstalling card programs...\n"
+      ;;
+   D)
+      echo -e "Removing card programs...\n"
+      ;;
+   *)
+      echo -e "Mode is not recognized!\n"
+      ;;
+esac
 
+#----------------#
+# set what to do #
+#----------------#
 R_opensc=false
 R_pcscd=false
 R_libnss=false
@@ -245,9 +277,9 @@ then
 fi
 
 if "$R_opensc"; then
-   #---------------#
-   # Manage opensc #
-   #---------------#
+#---------------#
+# Manage opensc #
+#---------------#
    result=`apt-cache policy opensc | grep Candidate |  cut -d ':' -f 2 | cut -d '-' -f 1 | tr -d '.'`
    ver=$(echo "$result + 0" | bc)
 
@@ -265,14 +297,6 @@ if "$R_pcscd"; then
 # Manage pcscd #
 #--------------#
    manage pcscd $mode
-
-   if pgrep pcscd &> /dev/null
-   then
-      echo -e "Good! pcscd is already running!"
-   else
-      echo -e "Starting pcscd..."
-      sudo service pcscd start
-   fi
 fi
 
 if "$R_libnss"; then
@@ -281,38 +305,42 @@ if "$R_libnss"; then
 #----------------------#
    manage libnss3-tools $mode
 
-   if [ $mode == "R" ] && [ -d "$HOME/.pki/nssdb" ]
+   if ([ $mode == "R" ] || [ $mode == "D" ]) && [ -d "$HOME/.pki/nssdb" ]
    then
       echo -e "\nRemoving nssdb folder..."
       rm -r $HOME/.pki/nssdb
    fi
 
-   if [ ! -d "$HOME/.pki/nssdb" ] && echo -e "\nDirectory $HOME/.pki/nssdb DOES NOT exists. Updating..."
+   if [ $mode != "D" ]
    then
-      if pgrep chrome &> /dev/null
-      then 
-         echo -e "\nClose Chrome or it will be killed in 8 seconds."
-         sleep 8
+      if [ ! -d "$HOME/.pki/nssdb" ] && echo -e "\nDirectory $HOME/.pki/nssdb DOES NOT exists. Updating..."
+      then
+         if pgrep chrome &> /dev/null
+         then 
+            echo -e "\nClose Chrome or it will be killed in 8 seconds."
+            sleep 8
+            if pgrep chrome &> /dev/null
+            then
+               pkill chrome
+               sleep 2
+            fi
+         fi
+         sleep 2
          if pgrep chrome &> /dev/null
          then
-            pkill chrome
-            sleep 2
+            echo -e "\nChrome is still running. Exiting..."
+            exit 0
+         else
+            echo -e "\n\nWhen required continue by pressing ENTER!!! (even for passwords)"
+            read -n 1 -s -r -p "(Press any key to continue)"
+	    echo -e "\n"
+            mkdir -p $HOME/.pki/nssdb
+            certutil -d $HOME/.pki/nssdb -N
+            modutil -dbdir sql:$HOME/.pki/nssdb -add opensc-pkcs11 -libfile opensc-pkcs11.so -mechanisms FRIENDLY
          fi
-      fi
-      sleep 2
-      if pgrep chrome &> /dev/null
-      then
-         echo -e "\nChrome is still running. Exiting..."
-         exit 0
       else
-         echo -e "\n\nWhen required continue by pressing ENTER!!! (even for passwords)\n"
-         sleep 10
-         mkdir -p $HOME/.pki/nssdb
-         certutil -d $HOME/.pki/nssdb -N
-         modutil -dbdir sql:$HOME/.pki/nssdb -add opensc-pkcs11 -libfile opensc-pkcs11.so -mechanisms FRIENDLY
+         echo -e "\nDirectory $HOME/.pki/nssdb already exists.\n"
       fi
-   else
-      echo -e "\nDirectory $HOME/.pki/nssdb already exists.\n"
    fi
 fi
 
@@ -323,15 +351,12 @@ if "$R_citrix"; then
    manage icaclient $mode
 fi
 
-#if [ $mint ]
-#then
-#	if [ -d "/etc/opensc" ]
-#	then
-#		opensc_conf_file
-#	else
-#		echo -e "opensc folder doesn't exist..."
-#	fi
-#fi
+command -v pcscd >/dev/null 2>&1
+if [ $? -eq 0 ]
+then
+   echo -e "\npcscd restart"
+   sudo service pcscd restart
+fi
 
 #--------------------#
 # Installed programs #
